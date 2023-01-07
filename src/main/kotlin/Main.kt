@@ -40,36 +40,51 @@ var identifier = ""
 var oldIdentifier = ""
 var startRecordingOnNextGameplay = true
 
+fun updateIdentifier() {
+    oldIdentifier = identifier
+    val sheet = SheetsUtil.readFromSheet("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", "Multiversus!B3:E3")[0]
+    identifier = sheet[0] + sheet[sheet.size - 1]
+}
+
 fun main(args: Array<String>) {
     val transport = GoogleNetHttpTransport.newTrustedTransport()
     val credentials = getCredentials(transport)
     googleSheetService = Sheets.Builder(transport, factory, credentials).setApplicationName("FzzyApexGraphics").build()
+    updateIdentifier()
+    oldIdentifier = identifier
 
     Thread {
         while (true) {
-            oldIdentifier = identifier
-            identifier = SheetsUtil.readFromSheet("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", "Multiversus!B3")[0][0]
             Thread.sleep(5000)
+            updateIdentifier()
         }
     }.start()
 
     controller = OBSRemoteController.builder()
         .host("localhost")
         .port(4455)
-        .lifecycle().onReady {
-            controller.startRecord(5)
-        }.and()
         .build()
     controller.connect()
     Thread.sleep(1000)
     while (true) {
         Thread.sleep(100)
         if (identifier != oldIdentifier) {
-            oldIdentifier = identifier
+            println("identifier changed: $oldIdentifier -> $identifier")
             if (!VMix.isGameplay() && !startRecordingOnNextGameplay) {
                 controller.stopRecord(5)
                 startRecordingOnNextGameplay = true
+                val newName = "$oldIdentifier.mp4"
+                controller.getOutputSettings("adv_file_output") {
+                    val file = File(it.outputSettings.get("path").asString)
+                    val rename = File(file.parent, newName)
+                    println(rename.absolutePath)
+                    Thread {
+                        Thread.sleep(4000)
+                        file.renameTo(rename)
+                    }.start()
+                }
             }
+            oldIdentifier = identifier
         }
         if (VMix.isGameplay()) {
             if (startRecordingOnNextGameplay) {
