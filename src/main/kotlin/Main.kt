@@ -9,15 +9,19 @@ import com.google.api.client.json.gson.GsonFactory
 import com.google.api.client.util.store.FileDataStoreFactory
 import com.google.api.services.sheets.v4.Sheets
 import com.google.api.services.sheets.v4.SheetsScopes
+import com.google.api.services.sheets.v4.model.ValueRange
 import io.obswebsocket.community.client.OBSRemoteController
 import java.io.File
 import java.io.InputStreamReader
 import java.util.*
+import kotlin.collections.ArrayList
 
 lateinit var googleSheetService: Sheets
 val factory: GsonFactory = GsonFactory.getDefaultInstance()
 lateinit var controller: OBSRemoteController
 var paused = false
+
+
 
 private fun getCredentials(HTTP_TRANSPORT: NetHttpTransport): Credential? {
     val scopes = Collections.singletonList(SheetsScopes.SPREADSHEETS)
@@ -42,8 +46,30 @@ var startRecordingOnNextGameplay = true
 
 fun updateIdentifier() {
     oldIdentifier = identifier
-    val sheet = SheetsUtil.readFromSheet("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", "Multiversus!B3:E3")[0]
-    identifier = sheet[0] + sheet[sheet.size - 1]
+    val identifiers = arrayOf(
+        //"Multiversus!B3",
+        //"Multiversus!E3",
+        //"Guilty Gear!B3",
+        //"Guilty Gear!E3",
+        "Apex!A15"
+    )
+    val sheet = SheetsUtil.batchRead("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", *identifiers)
+
+    val identifierValues = arrayListOf<String>()
+
+    for (v in sheet.values) {
+        if (v !is ArrayList<*>) continue
+        for (l in v){
+            val range = l as ValueRange
+            for (va in range.values) {
+                if (va !is ArrayList<*>) continue
+                val values = va as List<List<String>>
+
+                values.forEach { it.forEach { it -> identifierValues.add(it) } }
+            }
+        }
+    }
+    identifier = identifierValues.joinToString(" ")
 }
 
 fun main(args: Array<String>) {

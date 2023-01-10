@@ -1,3 +1,4 @@
+import com.google.api.services.sheets.v4.model.BatchGetValuesResponse
 import com.google.api.services.sheets.v4.model.ClearValuesRequest
 import com.google.api.services.sheets.v4.model.ValueRange
 
@@ -24,5 +25,11 @@ object SheetsUtil {
     fun readFromSheet(sheetId: String, range: String): List<List<String>> {
         val received = googleSheetService.spreadsheets().values().get(sheetId, range).execute()
         return received.getValues() as List<List<String>>
+    }
+
+    fun batchRead(sheetId: String, vararg ranges: String): BatchGetValuesResponse {
+        val request = googleSheetService.spreadsheets().values().batchGet(sheetId)
+        request.ranges = ranges.asList()
+        return request.execute()
     }
 }
