@@ -10,6 +10,7 @@ import com.google.api.client.util.store.FileDataStoreFactory
 import com.google.api.services.sheets.v4.Sheets
 import com.google.api.services.sheets.v4.SheetsScopes
 import com.google.api.services.sheets.v4.model.ValueRange
+import com.google.gson.Gson
 import io.obswebsocket.community.client.OBSRemoteController
 import java.io.File
 import java.io.InputStreamReader
@@ -20,6 +21,7 @@ lateinit var googleSheetService: Sheets
 val factory: GsonFactory = GsonFactory.getDefaultInstance()
 lateinit var controller: OBSRemoteController
 var paused = false
+val gson = Gson()
 
 
 
@@ -47,13 +49,11 @@ var startRecordingOnNextGameplay = true
 fun updateIdentifier() {
     oldIdentifier = identifier
     val identifiers = arrayOf(
-        //"Multiversus!B3",
-        //"Multiversus!E3",
-        //"Guilty Gear!B3",
-        //"Guilty Gear!E3",
-        "Apex!A15"
+        arrayOf("Multiversus!B3", "Multiversus!E3"),
+        arrayOf("Guilty Gear!B3", "Guilty Gear!E3"),
+        arrayOf("Apex!A15")
     )
-    val sheet = SheetsUtil.batchRead("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", *identifiers)
+    val sheet = SheetsUtil.batchRead("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", *identifiers.flatten().toTypedArray())
 
     val identifierValues = arrayListOf<String>()
 
@@ -65,7 +65,7 @@ fun updateIdentifier() {
                 if (va !is ArrayList<*>) continue
                 val values = va as List<List<String>>
 
-                values.forEach { it.forEach { it -> identifierValues.add(it) } }
+                values.forEach { it.forEach { cellValue -> identifierValues.add(cellValue) } }
             }
         }
     }
@@ -102,7 +102,7 @@ fun main(args: Array<String>) {
                 val newName = "$oldIdentifier.mp4"
                 controller.getOutputSettings("adv_file_output") {
                     val file = File(it.outputSettings.get("path").asString)
-                    val rename = File(file.parent, newName)
+                    val rename = File(file.parent, newName.replace("|", ""))
                     println(rename.absolutePath)
                     Thread {
                         Thread.sleep(4000)
