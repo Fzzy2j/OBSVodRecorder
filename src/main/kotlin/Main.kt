@@ -23,6 +23,11 @@ lateinit var controller: OBSRemoteController
 var paused = false
 val gson = Gson()
 
+val identifiers = arrayOf(
+    VodIdentifier(arrayListOf("Multiversus!B3", "Multiversus!E3"), arrayListOf("Multiversus!H3", "Multiversus!H2", "Multiversus!I7")),
+    VodIdentifier(arrayListOf("Guilty Gear!B3", "Guilty Gear!E3"), arrayListOf("Guilty Gear!H3", "Guilty Gear!H2", "Guilty Gear!I7")),
+    VodIdentifier(arrayListOf("Apex!A15"), arrayListOf("Apex!A6"))
+)
 
 
 private fun getCredentials(HTTP_TRANSPORT: NetHttpTransport): Credential? {
@@ -42,42 +47,24 @@ private fun getCredentials(HTTP_TRANSPORT: NetHttpTransport): Credential? {
     return AuthorizationCodeInstalledApp(flow, receiver).authorize("user")
 }
 
-var identifier = ""
-var oldIdentifier = ""
 var startRecordingOnNextGameplay = true
 
 fun updateIdentifier() {
-    oldIdentifier = identifier
-    val identifiers = arrayOf(
-        arrayOf("Multiversus!B3", "Multiversus!E3"),
-        arrayOf("Guilty Gear!B3", "Guilty Gear!E3"),
-        arrayOf("Apex!A15")
-    )
-    val sheet = SheetsUtil.batchRead("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", *identifiers.flatten().toTypedArray())
-
-    val identifierValues = arrayListOf<String>()
-
-    for (v in sheet.values) {
-        if (v !is ArrayList<*>) continue
-        for (l in v){
-            val range = l as ValueRange
-            for (va in range.values) {
-                if (va !is ArrayList<*>) continue
-                val values = va as List<List<String>>
-
-                values.forEach { it.forEach { cellValue -> identifierValues.add(cellValue) } }
-            }
-        }
+    val cellList = arrayListOf<String>()
+    for (id in identifiers) {
+        cellList.addAll(id.mainIdentifiers)
+        cellList.addAll(id.tags)
     }
-    identifier = identifierValues.joinToString(" ")
+    val sheet = SheetsUtil.batchRead("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", *cellList.toTypedArray())
+    for (id in identifiers) {
+        id.update(sheet)
+    }
 }
-
 fun main(args: Array<String>) {
     val transport = GoogleNetHttpTransport.newTrustedTransport()
     val credentials = getCredentials(transport)
     googleSheetService = Sheets.Builder(transport, factory, credentials).setApplicationName("FzzyApexGraphics").build()
     updateIdentifier()
-    oldIdentifier = identifier
 
     Thread {
         while (true) {
@@ -94,12 +81,19 @@ fun main(args: Array<String>) {
     Thread.sleep(1000)
     while (true) {
         Thread.sleep(100)
-        if (identifier != oldIdentifier) {
-            println("identifier changed: $oldIdentifier -> $identifier")
+
+        val mainIds = arrayListOf<String>()
+        for (id in identifiers) {
+            if (id.anyChanges()) {
+                mainIds.add(id.getOldIdentifier())
+            }
+        }
+        if (mainIds.isNotEmpty()) {
+            println("identifier changed: ${mainIds.joinToString(" ")}")
             if (!VMix.isGameplay() && !startRecordingOnNextGameplay) {
                 controller.stopRecord(5)
                 startRecordingOnNextGameplay = true
-                val newName = "$oldIdentifier.mp4"
+                val newName = "${mainIds.joinToString(" ")}.mp4"
                 controller.getOutputSettings("adv_file_output") {
                     val file = File(it.outputSettings.get("path").asString)
                     val rename = File(file.parent, newName.replace("|", ""))
@@ -110,7 +104,6 @@ fun main(args: Array<String>) {
                     }.start()
                 }
             }
-            oldIdentifier = identifier
         }
         if (VMix.isGameplay()) {
             if (startRecordingOnNextGameplay) {
