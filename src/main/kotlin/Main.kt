@@ -24,8 +24,8 @@ var paused = false
 val gson = Gson()
 
 val identifiers = arrayOf(
-    VodIdentifier(arrayListOf("Multiversus!B3", "Multiversus!E3"), arrayListOf("Multiversus!H3", "Multiversus!H2", "Multiversus!I7")),
-    VodIdentifier(arrayListOf("Guilty Gear!B3", "Guilty Gear!E3"), arrayListOf("Guilty Gear!H3", "Guilty Gear!H2", "Guilty Gear!I7")),
+    VodIdentifier(arrayListOf("Multiversus!B3", "Multiversus!E3", "Multiversus!H2"), arrayListOf("Multiversus!H3")),
+    VodIdentifier(arrayListOf("Guilty Gear!B3", "Guilty Gear!E3", "Guilty Gear!H2"), arrayListOf("Guilty Gear!H3")),
     VodIdentifier(arrayListOf("Apex!A15"), arrayListOf("Apex!A6"))
 )
 
@@ -55,9 +55,13 @@ fun updateIdentifier() {
         cellList.addAll(id.mainIdentifiers)
         cellList.addAll(id.tags)
     }
-    val sheet = SheetsUtil.batchRead("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", *cellList.toTypedArray())
-    for (id in identifiers) {
-        id.update(sheet)
+    try {
+        val sheet = SheetsUtil.batchRead("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", *cellList.toTypedArray())
+        for (id in identifiers) {
+            id.update(sheet)
+        }
+    } catch (e: Exception) {
+        println("Failed to update identifers: ${e.message}")
     }
 }
 fun main(args: Array<String>) {
@@ -83,9 +87,12 @@ fun main(args: Array<String>) {
         Thread.sleep(100)
 
         val mainIds = arrayListOf<String>()
+        val tags = arrayListOf<String>()
         for (id in identifiers) {
             if (id.anyChanges()) {
                 mainIds.add(id.getOldIdentifier())
+                tags.addAll(id.getTagValues())
+                id.consumeChanges()
             }
         }
         if (mainIds.isNotEmpty()) {
@@ -96,8 +103,9 @@ fun main(args: Array<String>) {
                 val newName = "${mainIds.joinToString(" ")}.mp4"
                 controller.getOutputSettings("adv_file_output") {
                     val file = File(it.outputSettings.get("path").asString)
+                    //val directory = File(file.parent, tags.joinToString("\\"))
                     val rename = File(file.parent, newName.replace("|", ""))
-                    println(rename.absolutePath)
+                    println("vod file: ${rename.absolutePath}\ntags: ${tags.joinToString()}")
                     Thread {
                         Thread.sleep(4000)
                         file.renameTo(rename)

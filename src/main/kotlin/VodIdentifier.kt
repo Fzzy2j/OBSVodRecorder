@@ -10,7 +10,7 @@ class VodIdentifier(val mainIdentifiers: List<String>, val tags: List<String>) {
         }
         for (v in response.values) {
             if (v !is ArrayList<*>) continue
-            for (l in v){
+            for (l in v) {
                 val range = l as ValueRange
                 for (va in range.values) {
                     if (va !is ArrayList<*>) continue
@@ -18,18 +18,25 @@ class VodIdentifier(val mainIdentifiers: List<String>, val tags: List<String>) {
 
                     val key = range.range.replace("'", "")
                     sheetsValues[key] = values[0][0]
-                    //values.forEach { it.forEach { cellValue -> identifierValues.add(cellValue) } }
                 }
             }
         }
     }
 
-    fun getIdentifier():String {
+    fun getIdentifier(): String {
         val list = arrayListOf<String>()
         for (id in mainIdentifiers) {
             list.add(sheetsValues.getOrDefault(id, ""))
         }
         return list.joinToString(" ")
+    }
+
+    fun getTagValues(): List<String> {
+        val list = arrayListOf<String>()
+        for (id in tags) {
+            list.add(sheetsValues.getOrDefault(id, ""))
+        }
+        return list
     }
 
     fun getOldIdentifier(): String {
@@ -38,6 +45,12 @@ class VodIdentifier(val mainIdentifiers: List<String>, val tags: List<String>) {
             list.add(oldSheetsValues.getOrDefault(id, ""))
         }
         return list.joinToString(" ")
+    }
+
+    fun consumeChanges() {
+        for ((key, value) in sheetsValues) {
+            oldSheetsValues[key] = value
+        }
     }
 
     fun anyChanges(): Boolean {
