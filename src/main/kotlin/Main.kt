@@ -35,6 +35,7 @@ lateinit var controller: OBSRemoteController
 var paused = false
 val gson = Gson()
 
+
 val identifiers = arrayOf(
     VodIdentifier(arrayListOf("Multiversus!B3", "Multiversus!E3", "Multiversus!H2"), arrayListOf("Multiversus!H3")),
     VodIdentifier(arrayListOf("Guilty Gear!B3", "Guilty Gear!E3", "Guilty Gear!H2"), arrayListOf("Guilty Gear!H3")),
@@ -90,8 +91,10 @@ fun mat2BufferedImage(matrix: Mat): BufferedImage {
     return ImageIO.read(ByteArrayInputStream(mob.toArray()))
 }
 
-fun matchImg(img1: BufferedImage, img2: BufferedImage) {
+enum class Side { LEFT, RIGHT }
+class ImgResult(val value: Double, val side: Side)
 
+fun matchImg(img1: BufferedImage, img2: BufferedImage): ImgResult {
     val mat = bufferedImage2Mat(img1)
     val matTemplate = bufferedImage2Mat(img2)
 
@@ -103,12 +106,10 @@ fun matchImg(img1: BufferedImage, img2: BufferedImage) {
         Imgproc.matchTemplate(mat, matTemplate, result, Imgproc.TM_SQDIFF_NORMED)
         val mmr = Core.minMaxLoc(result)
 
-        if (mmr.minVal < 0.05) {
-            println("match! ${mmr.minLoc}")
-        } else {
-            println("no match :(")
-        }
+        val side = if (mmr.minLoc.x > img1.width / 2) Side.RIGHT else Side.LEFT
+        return ImgResult(mmr.minVal, side)
     }
+    return ImgResult(1.0, Side.LEFT)
 }
 
 fun overlayText(under: String, text: String, position: Point, fontSize: Int = 100) {
@@ -164,7 +165,7 @@ fun generateThumbnail(
 fun main(args: Array<String>) {
     ProcessStarter.setGlobalSearchPath(File("").absolutePath)
     System.load(File("opencv_java470.dll").absolutePath)
-    generateThumbnail(
+    /*generateThumbnail(
         "RAZZO1",
         "ThumbnailAssets\\May.png",
         "RAZZO2",
@@ -172,36 +173,41 @@ fun main(args: Array<String>) {
         "WINNERS FINALS",
         "S1: WEEK #1",
         "test.png"
-    )
-    /*val cams = Webcam.getWebcams()
+    )*/
+    val cams = Webcam.getWebcams()
     for (cam in cams) {
         if (cam.name.contains("OBS-Camera")) {
             cam.open()
             val og = cam.image
             Thread {
                 Thread.sleep(5000)
-                var start = System.currentTimeMillis()
-                val leo = ImageIO.read(File("leo.jpg"))
-                print("attempting sub img leo: ")
-                matchImg(og, leo)
-                println("time: ${System.currentTimeMillis() - start}")
-                start = System.currentTimeMillis()
-                val chipp = ImageIO.read(File("chipp.jpg"))
-                print("attempting sub img chipp: ")
-                matchImg(og, chipp)
-                println("time: ${System.currentTimeMillis() - start}")
-                start = System.currentTimeMillis()
-                val jacko = ImageIO.read(File("jacko.jpg"))
-                print("attempting sub img jacko: ")
-                matchImg(og, jacko)
-                println("time: ${System.currentTimeMillis() - start}")
-                start = System.currentTimeMillis()
+                var lowestLeft = ""
+                var lowestLeftVal = 1.0
+                var lowestRight = ""
+                var lowestRightVal = 1.0
+                for (file in File("CharacterSearches").listFiles()) {
+                    try {
+                        val result = matchImg(og, ImageIO.read(file))
+                        if (result.side == Side.LEFT && result.value < lowestLeftVal) {
+                            lowestLeft = file.nameWithoutExtension
+                            lowestLeftVal = result.value
+                        }
+                        if (result.side == Side.RIGHT && result.value < lowestRightVal) {
+                            lowestRight = file.nameWithoutExtension
+                            lowestRightVal = result.value
+                        }
+                    } catch (e: Exception) {
+                        println("failed to match img: ${e.message}")
+                    }
+                }
+                println("left: $lowestLeft")
+                println("right: $lowestRight")
             }.start()
 
             cam.close()
             break
         }
-    }*/
+    }
 
     return
     val transport = GoogleNetHttpTransport.newTrustedTransport()
