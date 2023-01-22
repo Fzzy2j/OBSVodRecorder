@@ -26,6 +26,8 @@ import java.awt.Point
 import java.awt.image.BufferedImage
 import java.io.*
 import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import javax.imageio.ImageIO
 
 
@@ -162,6 +164,8 @@ fun generateThumbnail(
     overlayText(output, week, Point(-500, 970), 70)
 }
 
+val threads = Executors.newFixedThreadPool(20)
+
 fun main(args: Array<String>) {
     ProcessStarter.setGlobalSearchPath(File("").absolutePath)
     System.load(File("opencv_java470.dll").absolutePath)
@@ -185,21 +189,27 @@ fun main(args: Array<String>) {
                 var lowestLeftVal = 1.0
                 var lowestRight = ""
                 var lowestRightVal = 1.0
+                val start = System.currentTimeMillis()
+                val list = arrayListOf<Future<*>>()
                 for (file in File("CharacterSearches").listFiles()) {
-                    try {
-                        val result = matchImg(og, ImageIO.read(file))
-                        if (result.side == Side.LEFT && result.value < lowestLeftVal) {
-                            lowestLeft = file.nameWithoutExtension
-                            lowestLeftVal = result.value
+                    list.add(threads.submit {
+                        try {
+                            val result = matchImg(og, ImageIO.read(file))
+                            if (result.side == Side.LEFT && result.value < lowestLeftVal) {
+                                lowestLeft = file.nameWithoutExtension
+                                lowestLeftVal = result.value
+                            }
+                            if (result.side == Side.RIGHT && result.value < lowestRightVal) {
+                                lowestRight = file.nameWithoutExtension
+                                lowestRightVal = result.value
+                            }
+                        } catch (e: Exception) {
+                            println("failed to match img: ${e.message}")
                         }
-                        if (result.side == Side.RIGHT && result.value < lowestRightVal) {
-                            lowestRight = file.nameWithoutExtension
-                            lowestRightVal = result.value
-                        }
-                    } catch (e: Exception) {
-                        println("failed to match img: ${e.message}")
-                    }
+                    })
                 }
+                list.forEach { it.get() }
+                println(System.currentTimeMillis() - start)
                 println("left: $lowestLeft")
                 println("right: $lowestRight")
             }.start()
