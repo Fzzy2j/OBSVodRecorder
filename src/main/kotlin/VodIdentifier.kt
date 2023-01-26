@@ -29,20 +29,28 @@ class VodIdentifier(val mainIdentifiers: HashMap<String, String>, val tags: Hash
         return sheetsValues[cell]
     }
 
-    fun getTagValues(): List<String> {
-        val list = arrayListOf<String>()
-        for (id in tags.values) {
-            list.add(sheetsValues.getOrDefault(id, ""))
-        }
-        return list
-    }
-
-    fun getOldIdentifier(): String {
+    fun getFileName(): String {
         val list = arrayListOf<String>()
         for (id in mainIdentifiers.values) {
             list.add(oldSheetsValues.getOrDefault(id, ""))
         }
         return list.joinToString(" ")
+    }
+
+    fun getCurrentValues(): HashMap<String, String> {
+        val values = hashMapOf<String, String>()
+        for ((key, value) in sheetsValues) {
+            values[key] = value
+        }
+        return values
+    }
+
+    fun getOldValues(): HashMap<String, String> {
+        val values = hashMapOf<String, String>()
+        for ((key, value) in oldSheetsValues) {
+            values[key] = value
+        }
+        return values
     }
 
     fun consumeChanges() {

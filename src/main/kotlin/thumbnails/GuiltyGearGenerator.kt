@@ -20,15 +20,15 @@ object GuiltyGearGenerator : ThumbnailGenerator {
     var characterLeftConfidence = 1.0
     var characterRightConfidence = 1.0
 
-    override fun vodFinished(identifiers: List<String>, tags: List<String>) {
+    override fun vodFinished(fileName: String, values: HashMap<String, String>) {
         generateThumbnail(
-            "RAZZO1",
-            "ThumbnailAssets\\May.png",
-            "RAZZO2",
-            "ThumbnailAssets\\Chipp.png",
-            "WINNERS FINALS",
+            values["P1Name"] ?: return,
+            "ThumbnailAssets\\$characterLeft.png",
+            values["P2Name"] ?: return,
+            "ThumbnailAssets\\$characterRight.png",
+            (values["Round"] ?: return).uppercase(),
             "S1: WEEK #1",
-            "test.png"
+            "$fileName.png"
         )
         characterLeftConfidence = 1.0
         characterRightConfidence = 1.0
@@ -80,17 +80,18 @@ object GuiltyGearGenerator : ThumbnailGenerator {
                 list.forEach { it.get() }
                 leftResults.sortBy { it.confidence }
                 rightResults.sortBy { it.confidence }
-
-                if (leftResults[0].confidence < characterLeftConfidence) {
-                    characterLeft = leftResults[0].character
-                    characterLeftConfidence = leftResults[0].confidence
+                if (leftResults.isNotEmpty() || rightResults.isNotEmpty()) {
+                    if (leftResults[0].confidence < characterLeftConfidence) {
+                        characterLeft = leftResults[0].character
+                        characterLeftConfidence = leftResults[0].confidence
+                    }
+                    if (rightResults[0].confidence < characterRightConfidence) {
+                        characterRight = rightResults[0].character
+                        characterRightConfidence = rightResults[0].confidence
+                    }
+                    println(characterLeft)
+                    println(characterRight)
                 }
-                if (rightResults[0].confidence < characterRightConfidence) {
-                    characterRight = rightResults[0].character
-                    characterRightConfidence = rightResults[0].confidence
-                }
-                println(characterLeft)
-                println(characterRight)
 
                 cam.close()
                 break

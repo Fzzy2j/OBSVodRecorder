@@ -14,7 +14,6 @@ import com.google.gson.Gson
 import io.obswebsocket.community.client.OBSRemoteController
 import org.im4java.process.ProcessStarter
 import thumbnails.GuiltyGearGenerator
-import thumbnails.ThumbnailGenerator
 import java.io.*
 import java.util.*
 import java.util.concurrent.Executors
@@ -31,13 +30,11 @@ val identifiers = arrayOf(
     VodIdentifier(
         hashMapOf("P1Name" to "Multiversus!B3", "P2Name" to "Multiversus!E3", "Round" to "Multiversus!H2"),
         hashMapOf("BestOf" to "Multiversus!H3")
-    ),
-    VodIdentifier(
+    ), VodIdentifier(
         hashMapOf("P1Name" to "Guilty Gear!B3", "P2Name" to "Guilty Gear!E3", "Round" to "Guilty Gear!H2"),
         hashMapOf("BestOf" to "Guilty Gear!H3"),
         GuiltyGearGenerator
-    ),
-    VodIdentifier(hashMapOf("Game" to "Apex!A15"), hashMapOf("ChampionSquad" to "Apex!A6"))
+    ), VodIdentifier(hashMapOf("Game" to "Apex!A15"), hashMapOf("ChampionSquad" to "Apex!A6"))
 )
 
 
@@ -50,10 +47,7 @@ private fun getCredentials(HTTP_TRANSPORT: NetHttpTransport): Credential? {
     // Build flow and trigger user authorization request.
     val flow = GoogleAuthorizationCodeFlow.Builder(
         HTTP_TRANSPORT, factory, clientSecrets, scopes
-    )
-        .setDataStoreFactory(FileDataStoreFactory(File("")))
-        .setAccessType("offline")
-        .build()
+    ).setDataStoreFactory(FileDataStoreFactory(File(""))).setAccessType("offline").build()
     val receiver = LocalServerReceiver.Builder().setPort(8888).build()
     return AuthorizationCodeInstalledApp(flow, receiver).authorize("user")
 }
@@ -97,38 +91,36 @@ fun main(args: Array<String>) {
         }
     }.start()
 
-    controller = OBSRemoteController.builder()
-        .host("localhost")
-        .port(4455)
-        .build()
+    controller = OBSRemoteController.builder().host("localhost").port(4455).build()
     controller.connect()
     Thread.sleep(1000)
     while (true) {
         Thread.sleep(100)
 
-        val mainIds = arrayListOf<String>()
-        val tags = arrayListOf<String>()
+        var fileName = ""
+        val changedIdentifiers = arrayListOf<VodIdentifier>()
         for (id in identifiers) {
             if (id.anyChanges()) {
-                mainIds.add(id.getOldIdentifier())
-                tags.addAll(id.getTagValues())
+                changedIdentifiers.add(id)
+                fileName = "$fileName ${id.getFileName()}"
                 id.consumeChanges()
             }
         }
-        if (mainIds.isNotEmpty()) {
-            println("identifier changed: ${mainIds.joinToString(" ")}")
+        if (changedIdentifiers.isNotEmpty()) {
+            println("identifier changed: $fileName")
             if (!VMix.isGameplay() && !startRecordingOnNextGameplay) {
                 controller.stopRecord(5)
                 startRecordingOnNextGameplay = true
-                val newName = "${mainIds.joinToString(" ")}.mp4"
+                val newName = "$fileName.mp4"
                 controller.getOutputSettings("adv_file_output") {
                     val file = File(it.outputSettings.get("path").asString)
                     //val directory = File(file.parent, tags.joinToString("\\"))
                     val rename = File(file.parent, newName.replace("|", ""))
-                    println("vod file: ${rename.absolutePath}\ntags: ${tags.joinToString()}")
+                    println("vod file: ${rename.absolutePath}")
                     Thread {
                         Thread.sleep(4000)
                         file.renameTo(rename)
+                        changedIdentifiers.forEach { id -> id.thumbnailGenerator?.vodFinished(fileName, id.getOldValues()) }
                     }.start()
                 }
             }
