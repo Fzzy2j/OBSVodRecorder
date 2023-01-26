@@ -1,7 +1,8 @@
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse
 import com.google.api.services.sheets.v4.model.ValueRange
+import thumbnails.ThumbnailGenerator
 
-class VodIdentifier(val mainIdentifiers: List<String>, val tags: List<String>) {
+class VodIdentifier(val mainIdentifiers: HashMap<String, String>, val tags: HashMap<String, String>, val thumbnailGenerator: ThumbnailGenerator? = null) {
     val sheetsValues = hashMapOf<String, String>()
     val oldSheetsValues = hashMapOf<String, String>()
     fun update(response: BatchGetValuesResponse) {
@@ -23,17 +24,14 @@ class VodIdentifier(val mainIdentifiers: List<String>, val tags: List<String>) {
         }
     }
 
-    fun getIdentifier(): String {
-        val list = arrayListOf<String>()
-        for (id in mainIdentifiers) {
-            list.add(sheetsValues.getOrDefault(id, ""))
-        }
-        return list.joinToString(" ")
+    fun getValue(key: String): String? {
+        val cell = mainIdentifiers[key]?: tags[key]?: return null
+        return sheetsValues[cell]
     }
 
     fun getTagValues(): List<String> {
         val list = arrayListOf<String>()
-        for (id in tags) {
+        for (id in tags.values) {
             list.add(sheetsValues.getOrDefault(id, ""))
         }
         return list
@@ -41,7 +39,7 @@ class VodIdentifier(val mainIdentifiers: List<String>, val tags: List<String>) {
 
     fun getOldIdentifier(): String {
         val list = arrayListOf<String>()
-        for (id in mainIdentifiers) {
+        for (id in mainIdentifiers.values) {
             list.add(oldSheetsValues.getOrDefault(id, ""))
         }
         return list.joinToString(" ")

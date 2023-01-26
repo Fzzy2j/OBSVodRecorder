@@ -12,23 +12,12 @@ import com.google.api.services.sheets.v4.Sheets
 import com.google.api.services.sheets.v4.SheetsScopes
 import com.google.gson.Gson
 import io.obswebsocket.community.client.OBSRemoteController
-import org.im4java.core.IMOperation
-import org.im4java.core.ImageMagickCmd
 import org.im4java.process.ProcessStarter
-import org.opencv.core.Core
-import org.opencv.core.CvType
-import org.opencv.core.Mat
-import org.opencv.core.MatOfByte
-import org.opencv.imgcodecs.Imgcodecs
-import org.opencv.imgproc.Imgproc
-import java.awt.Font
-import java.awt.Point
-import java.awt.image.BufferedImage
+import thumbnails.GuiltyGearGenerator
+import thumbnails.ThumbnailGenerator
 import java.io.*
 import java.util.*
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
-import javax.imageio.ImageIO
 
 
 lateinit var googleSheetService: Sheets
@@ -39,9 +28,16 @@ val gson = Gson()
 
 
 val identifiers = arrayOf(
-    VodIdentifier(arrayListOf("Multiversus!B3", "Multiversus!E3", "Multiversus!H2"), arrayListOf("Multiversus!H3")),
-    VodIdentifier(arrayListOf("Guilty Gear!B3", "Guilty Gear!E3", "Guilty Gear!H2"), arrayListOf("Guilty Gear!H3")),
-    VodIdentifier(arrayListOf("Apex!A15"), arrayListOf("Apex!A6"))
+    VodIdentifier(
+        hashMapOf("P1Name" to "Multiversus!B3", "P2Name" to "Multiversus!E3", "Round" to "Multiversus!H2"),
+        hashMapOf("BestOf" to "Multiversus!H3")
+    ),
+    VodIdentifier(
+        hashMapOf("P1Name" to "Guilty Gear!B3", "P2Name" to "Guilty Gear!E3", "Round" to "Guilty Gear!H2"),
+        hashMapOf("BestOf" to "Guilty Gear!H3"),
+        GuiltyGearGenerator
+    ),
+    VodIdentifier(hashMapOf("Game" to "Apex!A15"), hashMapOf("ChampionSquad" to "Apex!A6"))
 )
 
 
@@ -67,8 +63,8 @@ var startRecordingOnNextGameplay = true
 fun updateIdentifier() {
     val cellList = arrayListOf<String>()
     for (id in identifiers) {
-        cellList.addAll(id.mainIdentifiers)
-        cellList.addAll(id.tags)
+        cellList.addAll(id.mainIdentifiers.values)
+        cellList.addAll(id.tags.values)
     }
     try {
         val sheet = SheetsUtil.batchRead("1jnOGzo2GX3omiMcqxLRNACdYHYz3pkiYGiqbGFsHnXk", *cellList.toTypedArray())
@@ -78,148 +74,17 @@ fun updateIdentifier() {
     } catch (e: Exception) {
         println("Failed to update identifers: ${e.message}")
     }
-}
-
-fun bufferedImage2Mat(image: BufferedImage): Mat {
-    val byteArrayOutputStream = ByteArrayOutputStream()
-    ImageIO.write(image, "jpg", byteArrayOutputStream)
-    byteArrayOutputStream.flush()
-    return Imgcodecs.imdecode(MatOfByte(*byteArrayOutputStream.toByteArray()), Imgcodecs.IMREAD_UNCHANGED)
-}
-
-fun mat2BufferedImage(matrix: Mat): BufferedImage {
-    val mob = MatOfByte()
-    Imgcodecs.imencode(".jpg", matrix, mob)
-    return ImageIO.read(ByteArrayInputStream(mob.toArray()))
-}
-
-enum class Side { LEFT, RIGHT }
-class ImgResult(val value: Double, val side: Side)
-
-fun matchImg(img1: BufferedImage, img2: BufferedImage): ImgResult {
-    val mat = bufferedImage2Mat(img1)
-    val matTemplate = bufferedImage2Mat(img2)
-
-    val resultCols = mat.cols() - matTemplate.cols() + 1
-    val resultRows = mat.rows() - matTemplate.rows() + 1
-    if (resultCols > 0 && resultRows > 0) {
-        val result = Mat(resultRows, resultCols, CvType.CV_8UC1)
-
-        Imgproc.matchTemplate(mat, matTemplate, result, Imgproc.TM_SQDIFF_NORMED)
-        val mmr = Core.minMaxLoc(result)
-
-        val side = if (mmr.minLoc.x > img1.width / 2) Side.RIGHT else Side.LEFT
-        return ImgResult(mmr.minVal, side)
+    for (id in identifiers) {
+        threads.submit { id.thumbnailGenerator?.onIdenfifierUpdate() }
     }
-    return ImgResult(1.0, Side.LEFT)
 }
 
-fun overlayText(under: String, text: String, position: Point, fontSize: Int = 100) {
-    val composite = ImageMagickCmd("convert")
-    val operation = IMOperation()
-    operation.addImage(under)
-
-    operation.fill("WHITE")
-    operation.font("Gotham-Black.otf")
-    operation.gravity("North")
-    operation.pointsize(fontSize)
-    operation.draw("\"text ${position.x},${position.y} '$text'\"")
-
-    operation.addImage(under)
-    composite.run(operation)
-}
-
-fun overlayImg(under: String, over: String, output: String, flip: Boolean = false) {
-    val composite = ImageMagickCmd("convert")
-    val operation = IMOperation()
-    operation.compose("dstover")
-    operation.addImage(over)
-    if (flip) operation.flop()
-
-    operation.openOperation()
-    operation.addImage(under)
-
-    operation.closeOperation()
-    operation.composite()
-
-    operation.addImage(output)
-    composite.run(operation)
-}
-
-fun generateThumbnail(
-    player1: String,
-    character1: String,
-    player2: String,
-    character2: String,
-    round: String,
-    week: String,
-    output: String
-) {
-    overlayImg("ThumbnailAssets\\thumbnailbg.jpg", character1, output)
-    overlayImg(output, character2, output, true)
-    overlayImg(output, "ThumbnailAssets\\overlay.png", output)
-    overlayText(output, player1, Point(-480, 10))
-    overlayText(output, player2, Point(480, 10))
-    overlayText(output, round, Point(500, 970), 70)
-    overlayText(output, week, Point(-500, 970), 70)
-}
-
-val threads = Executors.newFixedThreadPool(20)
+val threads = Executors.newCachedThreadPool()
 
 fun main(args: Array<String>) {
     ProcessStarter.setGlobalSearchPath(File("").absolutePath)
     System.load(File("opencv_java470.dll").absolutePath)
-    /*generateThumbnail(
-        "RAZZO1",
-        "ThumbnailAssets\\May.png",
-        "RAZZO2",
-        "ThumbnailAssets\\Chipp.png",
-        "WINNERS FINALS",
-        "S1: WEEK #1",
-        "test.png"
-    )*/
-    val cams = Webcam.getWebcams()
-    for (cam in cams) {
-        if (cam.name.contains("OBS-Camera")) {
-            cam.open()
-            val og = cam.image
-            Thread {
-                Thread.sleep(5000)
-                var lowestLeft = ""
-                var lowestLeftVal = 1.0
-                var lowestRight = ""
-                var lowestRightVal = 1.0
-                val start = System.currentTimeMillis()
-                val list = arrayListOf<Future<*>>()
-                for (file in File("CharacterSearches").listFiles()) {
-                    list.add(threads.submit {
-                        try {
-                            val result = matchImg(og, ImageIO.read(file))
-                            if (result.side == Side.LEFT && result.value < lowestLeftVal) {
-                                lowestLeft = file.nameWithoutExtension
-                                lowestLeftVal = result.value
-                            }
-                            if (result.side == Side.RIGHT && result.value < lowestRightVal) {
-                                lowestRight = file.nameWithoutExtension
-                                lowestRightVal = result.value
-                            }
-                        } catch (e: Exception) {
-                            println("failed to match img: ${e.message}")
-                        }
-                    })
-                }
-                list.forEach { it.get() }
-                println(System.currentTimeMillis() - start)
-                println("left: $lowestLeft")
-                println("right: $lowestRight")
-            }.start()
 
-            cam.close()
-            break
-        }
-    }
-
-    return
     val transport = GoogleNetHttpTransport.newTrustedTransport()
     val credentials = getCredentials(transport)
     googleSheetService = Sheets.Builder(transport, factory, credentials).setApplicationName("FzzyApexGraphics").build()
