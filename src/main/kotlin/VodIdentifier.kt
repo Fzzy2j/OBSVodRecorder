@@ -29,6 +29,12 @@ class VodIdentifier(val mainIdentifiers: HashMap<String, String>, val tags: Hash
         return sheetsValues[cell]
     }
 
+
+    fun getOldValue(key: String): String? {
+        val cell = mainIdentifiers[key]?: tags[key]?: return null
+        return oldSheetsValues[cell]
+    }
+
     fun getFileName(): String {
         val list = arrayListOf<String>()
         for (id in mainIdentifiers.values) {
@@ -61,7 +67,7 @@ class VodIdentifier(val mainIdentifiers: HashMap<String, String>, val tags: Hash
 
     fun anyChanges(): Boolean {
         for ((key, value) in sheetsValues) {
-            if (!mainIdentifiers.contains(key)) continue
+            if (!mainIdentifiers.containsValue(key)) continue
             if (!oldSheetsValues.containsKey(key)) return false
             if (value != oldSheetsValues[key]) return true
         }

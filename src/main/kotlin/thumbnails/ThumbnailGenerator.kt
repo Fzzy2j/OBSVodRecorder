@@ -1,6 +1,8 @@
 package thumbnails
 
+import java.io.File
+
 interface ThumbnailGenerator {
-    fun vodFinished(fileName: String, values: HashMap<String, String>)
+    fun vodFinished(file: File, values: HashMap<String, String>)
     fun onIdenfifierUpdate()
 }

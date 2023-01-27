@@ -5,11 +5,20 @@ import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow
 import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
+import com.google.api.client.http.AbstractInputStreamContent
+import com.google.api.client.http.FileContent
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.client.util.store.FileDataStoreFactory
 import com.google.api.services.sheets.v4.Sheets
 import com.google.api.services.sheets.v4.SheetsScopes
+import com.google.api.services.youtube.YouTube
+import com.google.api.services.youtube.YouTubeRequestInitializer
+import com.google.api.services.youtube.YouTubeScopes
+import com.google.api.services.youtube.model.ThumbnailDetails
+import com.google.api.services.youtube.model.Video
+import com.google.api.services.youtube.model.VideoSnippet
+import com.google.api.services.youtube.model.VideoStatus
 import com.google.gson.Gson
 import io.obswebsocket.community.client.OBSRemoteController
 import org.im4java.process.ProcessStarter
@@ -21,6 +30,7 @@ import java.util.concurrent.Executors
 
 lateinit var googleSheetService: Sheets
 val factory: GsonFactory = GsonFactory.getDefaultInstance()
+val transport = GoogleNetHttpTransport.newTrustedTransport()
 lateinit var controller: OBSRemoteController
 var paused = false
 val gson = Gson()
@@ -30,16 +40,18 @@ val identifiers = arrayOf(
     VodIdentifier(
         hashMapOf("P1Name" to "Multiversus!B3", "P2Name" to "Multiversus!E3", "Round" to "Multiversus!H2"),
         hashMapOf("BestOf" to "Multiversus!H3")
-    ), VodIdentifier(
+    ),
+    VodIdentifier(
         hashMapOf("P1Name" to "Guilty Gear!B3", "P2Name" to "Guilty Gear!E3", "Round" to "Guilty Gear!H2"),
         hashMapOf("BestOf" to "Guilty Gear!H3"),
         GuiltyGearGenerator
-    ), VodIdentifier(hashMapOf("Game" to "Apex!A15"), hashMapOf("ChampionSquad" to "Apex!A6"))
+    ),
+    VodIdentifier(hashMapOf("Game" to "Apex!A15"), hashMapOf("ChampionSquad" to "Apex!A6"))
 )
 
 
-private fun getCredentials(HTTP_TRANSPORT: NetHttpTransport): Credential? {
-    val scopes = Collections.singletonList(SheetsScopes.SPREADSHEETS)
+fun getCredentials(HTTP_TRANSPORT: NetHttpTransport): Credential? {
+    val scopes = arrayListOf(SheetsScopes.SPREADSHEETS, YouTubeScopes.YOUTUBE_UPLOAD)
     // Load client secrets.
     val `in` = File("credentials\\googleCredentials.json").inputStream()
     val clientSecrets = GoogleClientSecrets.load(factory, InputStreamReader(`in`))
@@ -78,9 +90,8 @@ val threads = Executors.newCachedThreadPool()
 fun main(args: Array<String>) {
     ProcessStarter.setGlobalSearchPath(File("").absolutePath)
     System.load(File("opencv_java470.dll").absolutePath)
-
-    val transport = GoogleNetHttpTransport.newTrustedTransport()
     val credentials = getCredentials(transport)
+
     googleSheetService = Sheets.Builder(transport, factory, credentials).setApplicationName("FzzyApexGraphics").build()
     updateIdentifier()
 
@@ -99,10 +110,20 @@ fun main(args: Array<String>) {
 
         var fileName = ""
         val changedIdentifiers = arrayListOf<VodIdentifier>()
+        val values = hashMapOf<String, String>()
         for (id in identifiers) {
             if (id.anyChanges()) {
                 changedIdentifiers.add(id)
-                fileName = "$fileName ${id.getFileName()}"
+                fileName = if (fileName.isEmpty()) id.getFileName() else "$fileName ${id.getFileName()}"
+
+                val keys = id.mainIdentifiers.keys.toList().toMutableList()
+                for (key in id.tags.keys) {
+                    keys.add(key)
+                }
+                for (key in keys) {
+                    val value = id.getOldValue(key) ?: continue
+                    values[key] = value
+                }
                 id.consumeChanges()
             }
         }
@@ -118,9 +139,9 @@ fun main(args: Array<String>) {
                     val rename = File(file.parent, newName.replace("|", ""))
                     println("vod file: ${rename.absolutePath}")
                     Thread {
-                        Thread.sleep(4000)
+                        Thread.sleep(8000)
                         file.renameTo(rename)
-                        changedIdentifiers.forEach { id -> id.thumbnailGenerator?.vodFinished(fileName, id.getOldValues()) }
+                        changedIdentifiers.forEach { id -> id.thumbnailGenerator?.vodFinished(rename, values) }
                     }.start()
                 }
             }

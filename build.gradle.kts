@@ -22,6 +22,7 @@ dependencies {
     implementation("com.github.sarxos:webcam-capture:0.3.12")
     implementation("org.bytedeco:javacv:1.5.8")
     implementation("org.im4java:im4java:1.4.0")
+    implementation("com.google.apis:google-api-services-youtube:v3-rev222-1.25.0")
 }
 
 tasks.test {
