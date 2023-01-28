@@ -1,5 +1,6 @@
-package thumbnails
+package generators
 
+import VodIdentifier
 import com.github.sarxos.webcam.Webcam
 import com.google.api.client.http.FileContent
 import com.google.api.services.youtube.YouTube
@@ -22,26 +23,42 @@ import java.io.File
 import java.util.concurrent.Future
 import javax.imageio.ImageIO
 
-object GuiltyGearGenerator : ThumbnailGenerator {
+object GuiltyGearGenerator : VodIdentifier(
+    hashMapOf(
+        "P1Name" to "Guilty Gear!B3",
+        "P2Name" to "Guilty Gear!E3",
+        "Round" to "Guilty Gear!H2",
+        "BestOf" to "Guilty Gear!H3"
+    )
+) {
 
     var characterLeft = ""
     var characterRight = ""
     var characterLeftConfidence = 1.0
     var characterRightConfidence = 1.0
+    override fun getCurrentIdentifier(): String {
+        return "${sheetsValues["P1Name"]} vs ${sheetsValues["P2Name"]}"
+    }
 
-    override fun vodFinished(file: File, values: HashMap<String, String>) {
+    override fun getOldIdentifier(): String {
+        return "${oldSheetsValues["P1Name"]} vs ${oldSheetsValues["P2Name"]}"
+    }
+
+    override fun vodFinished(file: File) {
         println("vod finished, generating thumbnail and uploading to youtube")
         generateThumbnail(
-            (values["P1Name"] ?: return).uppercase(),
+            (oldSheetsValues["P1Name"] ?: return).uppercase(),
             "ThumbnailAssets\\$characterLeft.png",
-            (values["P2Name"] ?: return).uppercase(),
+            (oldSheetsValues["P2Name"] ?: return).uppercase(),
             "ThumbnailAssets\\$characterRight.png",
-            (values["Round"] ?: return).uppercase(),
+            (oldSheetsValues["Round"] ?: return).uppercase(),
             "S3: WEEK #7",
             "${File(file.parent, file.nameWithoutExtension).absolutePath}.png"
         )
 
-        val youtubeService = YouTube.Builder(transport, factory, getCredentials(transport)).setApplicationName("FzzyApexGraphics").build()
+        val youtubeService =
+            YouTube.Builder(transport, factory, getCredentials(transport)).setApplicationName("FzzyApexGraphics")
+                .build()
 
         val ve = Video()
         ve.snippet = VideoSnippet()
@@ -96,9 +113,9 @@ object GuiltyGearGenerator : ThumbnailGenerator {
         try {
             var og = cam!!.image
             if (og == null) {
-               cam!!.close()
-               cam!!.open()
-               og = cam!!.image
+                cam!!.close()
+                cam!!.open()
+                og = cam!!.image
             }
             val list = arrayListOf<Future<*>>()
 
@@ -146,7 +163,7 @@ object GuiltyGearGenerator : ThumbnailGenerator {
                     characterRightConfidence = rightResults[0].confidence
                 }
             }
-        }catch (e: Exception) {
+        } catch (e: Exception) {
             println("failed to scan: ${e.message}")
         }
         scanning = false
