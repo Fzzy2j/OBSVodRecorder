@@ -2,7 +2,7 @@ import com.google.api.services.sheets.v4.model.BatchGetValuesResponse
 import com.google.api.services.sheets.v4.model.ValueRange
 import java.io.File
 
-abstract class VodIdentifier(val sheetsCells: HashMap<String, String>) {
+abstract class VodIdentifier(val folder: String, val sheetsCells: HashMap<String, String>) {
 
     abstract fun getCurrentIdentifier(): String
     abstract fun getOldIdentifier(): String
@@ -12,7 +12,7 @@ abstract class VodIdentifier(val sheetsCells: HashMap<String, String>) {
     val sheetsValues = hashMapOf<String, String>()
     val oldSheetsValues = hashMapOf<String, String>()
     fun update(response: BatchGetValuesResponse) {
-        consumeChanges()
+        if (!paused) consumeChanges()
         for (v in response.values) {
             if (v !is ArrayList<*>) continue
             for (l in v) {

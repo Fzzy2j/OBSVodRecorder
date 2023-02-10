@@ -17,6 +17,8 @@ import org.im4java.process.ProcessStarter
 import generators.GuiltyGearGenerator
 import generators.MultiversusGenerator
 import java.io.*
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.*
 import java.util.concurrent.Executors
 
@@ -72,9 +74,45 @@ fun updateIdentifier() {
 
 val threads = Executors.newCachedThreadPool()
 
+fun getWeekFile(root: File): File {
+    root.mkdirs()
+    val weeks = root.listFiles { _, name -> name.contains("Week") }!!.size
+    var weekFile = File(root, "Week ${weeks + 1}")
+    for (file in root.listFiles()!!) {
+        if (!file.name.contains("Week")) continue
+        val attr = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+        val since = System.currentTimeMillis() - attr.creationTime().toMillis()
+        if (since < 1000 * 60 * 60 * 24) {
+            weekFile = file
+            break
+        }
+    }
+    weekFile.mkdirs()
+    return weekFile
+}
+
+fun getCurrentWeek(root: File): Int {
+    if (!root.exists()) return 1
+    val weeks = root.listFiles { _, name -> name.contains("Week") }!!.size
+    var current = weeks + 1
+    for (file in root.listFiles()!!) {
+        if (!file.name.contains("Week")) continue
+        val attr = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+        val since = System.currentTimeMillis() - attr.creationTime().toMillis()
+        if (since < 1000 * 60 * 60 * 24) {
+            current = file.nameWithoutExtension.substring(5).toIntOrNull()?: 1
+            break
+        }
+    }
+    return current
+}
+
+var generatingVod = false
+
 fun main(args: Array<String>) {
     ProcessStarter.setGlobalSearchPath(File("").absolutePath)
     System.load(File("opencv_java470.dll").absolutePath)
+
     val credentials = getCredentials(transport)
 
     googleSheetService = Sheets.Builder(transport, factory, credentials).setApplicationName("FzzyApexGraphics").build()
@@ -95,23 +133,27 @@ fun main(args: Array<String>) {
 
         var fileName = ""
         val changedIdentifiers = arrayListOf<VodIdentifier>()
+        var containingFolder = ""
         for (id in identifiers) {
             if (id.anyChanges()) {
                 changedIdentifiers.add(id)
                 fileName = if (fileName.isEmpty()) id.getOldIdentifier() else "$fileName ${id.getOldIdentifier()}"
-
+                containingFolder = id.folder
             }
         }
         if (changedIdentifiers.isNotEmpty()) {
-            println("identifier changed: $fileName")
-            if (!VMix.isGameplay() && !startRecordingOnNextGameplay) {
+            if (!VMix.isGameplay() && !startRecordingOnNextGameplay && !generatingVod) {
+                println("identifier changed: $fileName")
+                generatingVod = true
                 controller.stopRecord(5)
                 startRecordingOnNextGameplay = true
                 val newName = "$fileName.mp4"
                 controller.getOutputSettings("adv_file_output") {
                     val file = File(it.outputSettings.get("path").asString)
+                    val weekFile = getWeekFile(File(file.parentFile, containingFolder))
+
                     //val directory = File(file.parent, tags.joinToString("\\"))
-                    val rename = File(file.parent, newName.replace("|", ""))
+                    val rename = File(weekFile, newName.replace("|", ""))
                     println("vod file: ${rename.absolutePath}")
                     Thread {
                         Thread.sleep(8000)
@@ -120,6 +162,7 @@ fun main(args: Array<String>) {
                             run {
                                 id.vodFinished(rename)
                                 id.consumeChanges()
+                                generatingVod = false
                             }
                         }
                     }.start()

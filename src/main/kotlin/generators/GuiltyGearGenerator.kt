@@ -16,6 +16,7 @@ import util.ImgUtil
 import util.ImgUtil.matchImg
 import util.ImgUtil.overlayImg
 import util.ImgUtil.overlayText
+import util.YoutubeUtil
 import java.awt.Point
 import java.awt.geom.AffineTransform
 import java.awt.image.BufferedImage
@@ -24,6 +25,7 @@ import java.util.concurrent.Future
 import javax.imageio.ImageIO
 
 object GuiltyGearGenerator : VodIdentifier(
+    "Guilty Gear",
     hashMapOf(
         "P1Name" to "Guilty Gear!B3",
         "P2Name" to "Guilty Gear!E3",
@@ -37,50 +39,29 @@ object GuiltyGearGenerator : VodIdentifier(
     var characterLeftConfidence = 1.0
     var characterRightConfidence = 1.0
     override fun getCurrentIdentifier(): String {
-        return "${sheetsValues["P1Name"]} vs ${sheetsValues["P2Name"]}"
+        return "${sheetsValues["P1Name"]!!.replace(" (L)", "")} vs ${sheetsValues["P2Name"]!!.replace(" (L)", "")}"
     }
 
     override fun getOldIdentifier(): String {
-        return "${oldSheetsValues["P1Name"]} vs ${oldSheetsValues["P2Name"]}"
+        return "${oldSheetsValues["P1Name"]!!.replace(" (L)", "")} vs ${oldSheetsValues["P2Name"]!!.replace(" (L)", "")}"
     }
 
     override fun vodFinished(file: File) {
         println("vod finished, generating thumbnail and uploading to youtube")
         generateThumbnail(
             (oldSheetsValues["P1Name"] ?: return).uppercase(),
-            "ThumbnailAssets\\$characterLeft.png",
+            "ThumbnailAssets\\GuiltyGear\\$characterLeft.png",
             (oldSheetsValues["P2Name"] ?: return).uppercase(),
-            "ThumbnailAssets\\$characterRight.png",
+            "ThumbnailAssets\\GuiltyGear\\$characterRight.png",
             (oldSheetsValues["Round"] ?: return).uppercase(),
-            "S3: WEEK #7",
+            "S3: WEEK #8",
             "${File(file.parent, file.nameWithoutExtension).absolutePath}.png"
         )
 
-        val youtubeService =
-            YouTube.Builder(transport, factory, getCredentials(transport)).setApplicationName("FzzyApexGraphics")
-                .build()
-
-        val ve = Video()
-        ve.snippet = VideoSnippet()
-        ve.snippet.title = file.nameWithoutExtension
-        ve.snippet.description = "video description"
-        ve.snippet.tags = arrayListOf("Guilty Gear")
-        ve.snippet.categoryId = "22"
-
-        ve.status = VideoStatus()
-        ve.status.privacyStatus = "unlisted"
-
-        val stream = FileContent("video/mp4", file)
-        val insert = youtubeService.Videos().insert("snippet,status", ve, stream)
-        insert.mediaHttpUploader.chunkSize = 512 * 1024 * 1024 // 512MB
-        insert.mediaHttpUploader.setProgressListener {
-            println("${it.chunkSize}  -  ${it.progress}")
-        }
-        val video = insert.execute()
-
-        val thumbnailStream = FileContent("image/png", File(file.parent, "${file.nameWithoutExtension}.png"))
-        val thumbnailSet = youtubeService.Thumbnails().set(video.id, thumbnailStream)
-        thumbnailSet.execute()
+        val thumbnail = File(file.parent, "${file.nameWithoutExtension}.png")
+        val p1name = oldSheetsValues["P1Name"]!!.replace(" (L)", "").uppercase()
+        val p2name = oldSheetsValues["P2Name"]!!.replace(" (L)", "").uppercase()
+        YoutubeUtil.uploadVideo("S3W8 - $p1name vs $p2name", "#seriese #GuiltyGearStrive", arrayListOf("Guilty Gear"), file, thumbnail)
 
         characterLeftConfidence = 1.0
         characterRightConfidence = 1.0
@@ -178,9 +159,9 @@ object GuiltyGearGenerator : VodIdentifier(
         week: String,
         output: String
     ) {
-        overlayImg("ThumbnailAssets\\thumbnailbg.jpg", character1, output)
+        overlayImg("ThumbnailAssets\\GuiltyGear\\thumbnailbg.jpg", character1, output)
         overlayImg(output, character2, output, true)
-        overlayImg(output, "ThumbnailAssets\\overlay.png", output)
+        overlayImg(output, "ThumbnailAssets\\GuiltyGear\\overlay.png", output)
         overlayText(output, player1, Point(-480, 10))
         overlayText(output, player2, Point(480, 10))
         overlayText(output, round, Point(500, 970), 70)
